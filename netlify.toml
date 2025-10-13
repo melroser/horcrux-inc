@@ -1,0 +1,19 @@
+[build]
+  base = "apps/web"
+  command = "pnpm build"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
+
+[[redirects]]
+  from = "/rob_shard.json"
+  to = "/rob_shard.json"
+  status = 200
