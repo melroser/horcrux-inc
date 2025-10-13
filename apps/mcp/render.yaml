@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: horcrux-mcp
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SHARD_URL
+        value: https://horcrux.inc/rob_shard.json
