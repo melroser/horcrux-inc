@@ -3,7 +3,9 @@ services:
     name: horcrux-mcp
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn server:app --host 0.0.0.0 --port 10000
+    plan: free
+    healthChechPath: /mcp/tools
     envVars:
-      - key: SHARD_URL
-        value: https://horcrux.inc/rob_shard.json
+      - key: HORCRUX_URL
+        value: https://horcrux.inc/rob_corpus.json

@@ -1,15 +1,16 @@
 {
   "name": "horcrux-inc",
   "private": true,
+  "packageManager": "pnpm@8.15.0",
+  "workspaces": ["apps/web"],
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "build:shard": "python tools/build_shard.py",
+    "build:shard": "python3 tools/build_shard.py",
     "deploy:mcp": "cd apps/mcp && render deploy"
   },
   "devDependencies": {
     "@types/node": "^20",
     "typescript": "^5"
-  },
-  "packageManager": "pnpm@8.15.0"
+  }
 }

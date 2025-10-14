@@ -1,10 +1,10 @@
 [build]
-  base = "apps/web"
+  base = "/"
   command = "pnpm build"
-  publish = "apps/web/.next"
+  publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "18"
+    NEXT_PUBLIC_SITE_URL = "https://horcrux.inc"
 
 [[headers]]
   for = "/api/*"
