@@ -1,0 +1,135 @@
+{
+  "meta": {
+    "name": "Robert Melrose",
+    "title": "Senior Full-Stack Engineer",
+    "location": "Miami, FL",
+    "updated": "2025-10-15T19:08:25.030709Z",
+    "version": "2025.10.15-1",
+    "contact": {
+      "linkedin": "linkedin.com/in/robertmelrose",
+      "github": "github.com/robmelrose"
+    }
+  },
+  "skills": {
+    "primary": [
+      "Next.js 15",
+      "TypeScript",
+      "Python",
+      "FastAPI",
+      "Redis",
+      "PostgreSQL"
+    ],
+    "secondary": [
+      "Docker",
+      "AWS",
+      "Tailwind CSS",
+      "Framer Motion",
+      "Supabase"
+    ],
+    "learning": [
+      "Snowflake",
+      "Kubernetes",
+      "Vector Databases",
+      "MCP Protocol"
+    ],
+    "domains": [
+      "Full-Stack Web",
+      "API Design",
+      "DevOps",
+      "AI Integration"
+    ]
+  },
+  "projects": [
+    {
+      "name": "Devs.Miami",
+      "stack": [
+        "Next.js",
+        "Supabase",
+        "Tailwind CSS",
+        "TypeScript"
+      ],
+      "status": "Production",
+      "description": "Miami developer community platform with event management and member directory",
+      "highlights": [
+        "500+ active members",
+        "Event RSVP system",
+        "Real-time chat"
+      ]
+    },
+    {
+      "name": "Archaeologist",
+      "stack": [
+        "Python",
+        "FastAPI",
+        "Redis",
+        "Audio Processing"
+      ],
+      "status": "MVP",
+      "description": "Audio processing pipeline for music analysis and batch alignment",
+      "highlights": [
+        "Real-time audio processing",
+        "Batch job queue",
+        "Redis caching"
+      ]
+    },
+    {
+      "name": "Horcrux",
+      "stack": [
+        "Next.js 15",
+        "FastAPI",
+        "MCP",
+        "TypeScript"
+      ],
+      "status": "Active Development",
+      "description": "Persistent personal context API for AI agents with MCP integration",
+      "highlights": [
+        "MCP protocol support",
+        "Public/private data layers",
+        "Agent Builder integration"
+      ]
+    }
+  ],
+  "interviews": [
+    {
+      "company": "Top-tier Finance Firm",
+      "role": "Senior Software Engineer",
+      "date": "2024-12-15",
+      "stage": "Technical Round 2",
+      "feedback": "Strong system design and API architecture. Need deeper knowledge of distributed caching patterns.",
+      "topics": [
+        "System Design",
+        "Caching",
+        "Microservices",
+        "Database Optimization"
+      ]
+    },
+    {
+      "company": "Enterprise SaaS",
+      "role": "Full-Stack Lead",
+      "date": "2024-11-28",
+      "stage": "Final Round",
+      "feedback": "Excellent React/Next.js knowledge. Great cultural fit. Waiting on team expansion approval.",
+      "topics": [
+        "React",
+        "Team Leadership",
+        "Product Strategy"
+      ]
+    }
+  ],
+  "learning_goals": [
+    "Snowflake data warehouse architecture",
+    "Kubernetes orchestration patterns",
+    "Vector database optimization",
+    "Advanced distributed systems"
+  ],
+  "availability": {
+    "status": "Actively interviewing",
+    "target_start": "2025-02-01",
+    "location_preference": "Miami or Remote",
+    "role_types": [
+      "Senior Engineer",
+      "Tech Lead",
+      "Principal Engineer"
+    ]
+  }
+}
