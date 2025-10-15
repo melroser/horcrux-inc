@@ -2,10 +2,11 @@ services:
   - type: web
     name: horcrux-mcp
     env: python
+    rootDir: apps/mcp
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port 10000
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
     plan: free
-    healthChechPath: /mcp/tools
+    healthCheckPath: /mcp/tools
     envVars:
-      - key: HORCRUX_URL
-        value: https://horcrux.inc/rob_corpus.json
+      - key: SHARD_URL
+        value: https://horcrux.inc/rob_shard.json  # adjust if you rename your shard file
