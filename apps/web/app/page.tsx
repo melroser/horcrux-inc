@@ -133,10 +133,6 @@ export default function HomePage() {
 
         >
           <div className="text-center w-full">
-          <style>
-          .hexed { filter: drop-shadow(0 0 6px #00dba5) drop-shadow(0 0 18px #00b98b); }
-          </style>
-          <img src="/icons/horcrux.svg" class="w-12 h-12 hexed" alt="Horcrux sigil">
           <motion.h1
               className="text-6xl md:text-8xl font-mono font-black mb-12 tracking-tighter relative inline-block"
               initial={{ opacity: 0, y: 50, scale: 0.9 }}
