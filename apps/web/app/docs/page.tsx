@@ -1,3 +1,4 @@
+
 // apps/web/app/docs/page.tsx
 export const metadata = {
   title: "Horcrux — Project Docs",

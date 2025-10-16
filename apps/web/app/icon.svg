@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <!-- Eldritch gradient -->
+    <radialGradient id="g-eldritch" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#00f6c3"/>
+      <stop offset="60%" stop-color="#00dba5"/>
+      <stop offset="100%" stop-color="#00b98b"/>
+    </radialGradient>
+
+    <!-- Glow filter -->
+    <filter id="f-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b2"/>
+      <feMerge>
+        <feMergeNode in="b2"/>
+        <feMergeNode in="b1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Thorn marker -->
+    <path id="thorn" d="M0,0 L3,6 L-3,6 Z" fill="#00f6c3" opacity="0.9" />
+    <style>
+      :root{color-scheme: dark;}
+      @media (prefers-reduced-motion:no-preference){
+        .pulse{animation:pulse 2.8s ease-in-out infinite;}
+        .spin-slow{animation:spin 28s linear infinite;}
+      }
+      @keyframes pulse{
+        0%,100%{opacity:0.9; filter:drop-shadow(0 0 2px #00f6c3) drop-shadow(0 0 6px #00dba5);}
+        50%{opacity:1; filter:drop-shadow(0 0 4px #00ffd0) drop-shadow(0 0 14px #00e5b3);}
+      }
+      @keyframes spin{from{transform:rotate(0)} to{transform:rotate(360deg)}}
+    </style>
+  </defs>
+
+  <!-- Black slab -->
+  <rect width="128" height="128" rx="24" fill="#000000"/>
+
+  <!-- Outer ritual ring -->
+  <g transform="translate(64,64)">
+    <circle r="46" fill="none" stroke="url(#g-eldritch)" stroke-width="3.5" opacity="0.9" class="pulse"/>
+    <!-- rotating faint halo -->
+    <g class="spin-slow" opacity="0.35">
+      <circle r="40" fill="none" stroke="url(#g-eldritch)" stroke-width="1.2" stroke-dasharray="2 8"/>
+    </g>
+
+    <!-- Thorns at the cardinal/ordinal points -->
+    <g filter="url(#f-glow)">
+      <g transform="rotate(0) translate(0,-46)"><use href="#thorn"/></g>
+      <g transform="rotate(45) translate(0,-46)"><use href="#thorn"/></g>
+      <g transform="rotate(90) translate(0,-46)"><use href="#thorn"/></g>
+      <g transform="rotate(135) translate(0,-46)"><use href="#thorn"/></g>
+      <g transform="rotate(180) translate(0,-46)"><use href="#thorn"/></g>
+      <g transform="rotate(225) translate(0,-46)"><use href="#thorn"/></g>
+      <g transform="rotate(270) translate(0,-46)"><use href="#thorn"/></g>
+      <g transform="rotate(315) translate(0,-46)"><use href="#thorn"/></g>
+    </g>
+
+    <!-- The CRUX glyph (custom rune: vertical spine + crossbar + barbs) -->
+    <g stroke="url(#g-eldritch)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" filter="url(#f-glow)">
+      <!-- vertical spine -->
+      <path d="M0,-30 L0,30"/>
+      <!-- crossbar -->
+      <path d="M-22,0 L22,0"/>
+      <!-- barbs (diagonals) -->
+      <path d="M-14,-18 L-26,0 L-14,18"/>
+      <path d="M14,-18 L26,0 L14,18"/>
+    </g>
+
+    <!-- Fractured core (curse crack) -->
+    <g opacity="0.9" filter="url(#f-glow)">
+      <circle r="12" fill="none" stroke="url(#g-eldritch)" stroke-width="2.2"/>
+      <path d="M -6 -10 L -2 -2 L -5 2 L -1 6 L 2 2 L 6 10" stroke="#00ffd0" stroke-width="1.4" fill="none"/>
+    </g>
+  </g>
+</svg>
