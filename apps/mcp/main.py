@@ -1,384 +1,93 @@
 # apps/mcp/main.py
-import os
+from __future__ import annotations
+
 import json
-from typing import Any, Dict, List
+import os
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 from fastapi import FastAPI
-from starlette.responses import JSONResponse
-
-# FastMCP gives us a spec-compliant /mcp endpoint (Streamable HTTP JSON-RPC)
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse, PlainTextResponse
 
 APP_NAME = "Horcrux MCP"
-VERSION = "0.1.0"
+APP_VERSION = "2025.10.16"
 
-# Where to load the horcrux JSON
-HORCRUX_URL = os.getenv("HORCRUX_URL")  # e.g. https://horcrux.inc/rob_horcrux.json
-HORCRUX_PATH = os.getenv("HORCRUX_PATH", str(Path(__file__).parent.parent.parent / "data" / "rob_horcrux.json"))
+# Resolve where your Horcrux JSON lives.
+# Override with HORCRUX_JSON if you want a different path at deploy time.
+DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "rob_horcrux.json"
+HORCRUX_PATH = Path(os.getenv("HORCRUX_JSON", str(DEFAULT_DATA)))
 
-# ---------- util: load + cache ----------
-_cache: Dict[str, Any] = {}
-
+# -----------------------
+# Load data once at boot
+# -----------------------
 def load_horcrux() -> Dict[str, Any]:
-    global _cache
-    if "horcrux" in _cache:
-        return _cache["horcrux"]
+    if not HORCRUX_PATH.exists():
+        return {"error": f"Horcrux JSON not found at {HORCRUX_PATH}"}
+    with HORCRUX_PATH.open("r", encoding="utf-8") as f:
+        return json.load(f)
 
-    data: Dict[str, Any]
-    if HORCRUX_URL:
-        import httpx
-        r = httpx.get(HORCRUX_URL, timeout=10.0)
-        r.raise_for_status()
-        data = r.json()
-    else:
-        p = Path(HORCRUX_PATH)
-        if not p.exists():
-            # minimal scaffold if missing
-            data = {"meta": {"name": "Unknown"}, "skills": {}, "projects": [], "notes": []}
-        else:
-            data = json.loads(p.read_text())
+HORCRUX = load_horcrux()
 
-    # normalize to a top-level "content" shape if needed
-    if "content" in data:
-        corpus = data["content"]
-    else:
-        corpus = data
-    _cache["horcrux"] = corpus
-    return corpus
+# -----------------------
+# FastMCP server & tools
+# -----------------------
+mcp = FastMCP(name=APP_NAME)
 
-# ---------- MCP server ----------
-mcp = FastMCP(APP_NAME, version=VERSION)
-
-@mcp.tool(description="Return the Horcrux (public) JSON blob")
+@mcp.tool()
 def get_horcrux() -> Dict[str, Any]:
-    return {"corpus": load_horcrux()}
+    """Return the full Horcrux JSON."""
+    return HORCRUX
 
-@mcp.tool(description="Keyword search over the Horcrux JSON")
+def _walk(node: Any, path: str = "root") -> List[Tuple[str, str]]:
+    """Yield (path, string_value) pairs for simple keyword scan."""
+    out: List[Tuple[str, str]] = []
+    if isinstance(node, dict):
+        for k, v in node.items():
+            out.extend(_walk(v, f"{path}.{k}"))
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            out.extend(_walk(v, f"{path}[{i}]"))
+    else:
+        # Only match against strings and simple scalars
+        if isinstance(node, (str, int, float, bool)) and node is not None:
+            out.append((path, str(node)))
+    return out
+
+@mcp.tool()
 def search_horcrux(q: str) -> List[Dict[str, str]]:
-    corpus = load_horcrux()
+    """Keyword search over the Horcrux JSON. Returns matching paths/snippets."""
+    q_lower = q.lower().strip()
+    if not q_lower:
+        return []
     results: List[Dict[str, str]] = []
-
-    def walk(node: Any, path: str = "corpus"):
-        if isinstance(node, dict):
-            for k, v in node.items():
-                walk(v, f"{path}.{k}")
-        elif isinstance(node, list):
-            for i, v in enumerate(node):
-                walk(v, f"{path}[{i}]")
-        else:
-            try:
-                s = str(node)
-            except Exception:
-                s = ""
-            if q.lower() in s.lower():
-                results.append({"path": path, "snippet": s[:200]})
-    walk({"content": corpus})  # ensure stable top-level
-    # clean up "content" prefix
-    for r in results:
-        if r["path"].startswith("corpus.content."):
-            r["path"] = r["path"].replace("corpus.content.", "corpus.", 1)
+    for p, text in _walk(HORCRUX, "corpus"):
+        if q_lower in text.lower():
+            results.append({"path": p, "snippet": text})
+            if len(results) >= 50:
+                break
     return results
 
-# ---------- ASGI app with both: spec /mcp and your old debug routes ----------
-app = FastAPI(title=APP_NAME)
+# -----------------------
+# ASGI app (Streamable HTTP)
+# - The FastMCP app exposes /mcp (JSON-RPC over Streamable HTTP)
+#   so mount it at "/" to make the final URL {host}/mcp
+# -----------------------
+mcp_app = mcp.http_app(path="/mcp")  # inner app serves /mcp
+app = FastAPI(lifespan=mcp_app.lifespan)
+app.mount("/", mcp_app)
 
-# Mount a spec-compliant Streamable HTTP endpoint at /mcp
-# (ChatGPT will POST here with JSON-RPC: initialize, tools/list, tools/call, etc.)
-app.mount("/mcp", mcp.http_app(path="/mcp"))
+# Optional: add a simple health route
+@mcp.custom_route("/health", methods=["GET"])
+async def health(_: Request) -> PlainTextResponse:
+    return PlainTextResponse("ok")
 
-# Optional: simple health and legacy debug endpoints
-@app.get("/mcp/health")
-def health():
-    return {"status": "ok", "name": APP_NAME, "version": VERSION}
+# Optional: tiny info endpoint (handy in a browser)
+@mcp.custom_route("/", methods=["GET"])
+async def root(_: Request) -> JSONResponse:
+    return JSONResponse({"name": APP_NAME, "version": APP_VERSION, "mcp_endpoint": "/mcp"})
 
-@app.get("/mcp/tools")
-def list_tools_legacy():
-    # Handy for curl/debug; ChatGPT won't use this
-    return JSONResponse({"tools": [
-        {"name": "get_horcrux", "description": "Return the Horcrux (public) JSON", "input_schema": {"type": "object", "properties": {}}},
-        {"name": "search_horcrux", "description": "Keyword search over the Horcrux JSON", "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]}}
-    ]})
-#
-## main.py
-#import os
-#import time
-#import asyncio
-#from typing import Any, Dict, List, Optional, Tuple
-#
-#import httpx
-#from fastapi import FastAPI, HTTPException, Header, Depends
-#from fastapi.middleware.cors import CORSMiddleware
-#from fastapi.responses import RedirectResponse, JSONResponse
-#from pydantic_settings import BaseSettings
-#from pydantic import AnyUrl  # v2 URL types
-#
-## -----------------------------
-## Settings
-## -----------------------------
-#class Settings(BaseSettings):
-#    HORCRUX_URL: AnyUrl = "https://horcrux.inc/rob_shard.json"
-#    ALLOW_ORIGINS: str = "*"          # CSV list of allowed origins (for browsers). Default "*"
-#    API_TOKEN: Optional[str] = None   # Optional bearer token to protect endpoints
-#    FETCH_TIMEOUT: float = 5.0        # seconds
-#    RETRY_MS: int = 250               # milliseconds between retries
-#    MAX_RETRIES: int = 3
-#
-#settings = Settings()
-#
-## -----------------------------
-## App & CORS
-## -----------------------------
-#app = FastAPI(title="Horcrux MCP Server", version="1.2.0")
-#
-#allow_origins = (
-#    ["*"] if settings.ALLOW_ORIGINS.strip() == "*"
-#    else [o.strip() for o in settings.ALLOW_ORIGINS.split(",") if o.strip()]
-#)
-#app.add_middleware(
-#    CORSMiddleware,
-#    allow_origins=allow_origins,
-#    allow_credentials=True,
-#    allow_methods=["*"],
-#    allow_headers=["*"],
-#)
-#
-## -----------------------------
-## Optional bearer auth
-## -----------------------------
-#def auth(authorization: Optional[str] = Header(None)) -> None:
-#    if settings.API_TOKEN:
-#        if not authorization or authorization != f"Bearer {settings.API_TOKEN}":
-#            raise HTTPException(status_code=401, detail="Unauthorized")
-#
-## -----------------------------
-## Cached fetch of the Horcrux JSON (ETag/Last-Modified)
-## -----------------------------
-#_cache: Dict[str, Any] = {"data": None, "etag": None, "lm": None, "ts": 0.0}
-#_cache_lock = asyncio.Lock()
-#
-#async def fetch_crux() -> Dict[str, Any]:
-#    """
-#    Fetch the HORCRUX_URL with basic caching.
-#    Uses ETag/If-None-Match and Last-Modified/If-Modified-Since when available.
-#    Falls back to last good copy on transient errors.
-#    """
-#    headers = {}
-#    if _cache["etag"]:
-#        headers["If-None-Match"] = _cache["etag"]
-#    if _cache["lm"]:
-#        headers["If-Modified-Since"] = _cache["lm"]
-#
-#    async with _cache_lock:
-#        async with httpx.AsyncClient(timeout=settings.FETCH_TIMEOUT) as client:
-#            for attempt in range(settings.MAX_RETRIES):
-#                try:
-#                    r = await client.get(str(settings.HORCRUX_URL), headers=headers)
-#                    if r.status_code == 304 and _cache["data"] is not None:
-#                        return _cache["data"]
-#                    r.raise_for_status()
-#                    data = r.json()
-#                    _cache.update({
-#                        "data": data,
-#                        "etag": r.headers.get("etag"),
-#                        "lm": r.headers.get("last-modified"),
-#                        "ts": time.time(),
-#                    })
-#                    return data
-#                except Exception:
-#                    # On last attempt, return stale (if any) or raise
-#                    if attempt == settings.MAX_RETRIES - 1:
-#                        if _cache["data"] is not None:
-#                            return _cache["data"]
-#                        raise
-#                    await asyncio.sleep(settings.RETRY_MS / 1000)
-#
-## Warm the cache on startup (non-blocking)
-#@app.on_event("startup")
-#async def _warm() -> None:
-#    try:
-#        await fetch_crux()
-#    except Exception:
-#        # Don't crash startup if upstream is temporarily down
-#        pass
-#
-## -----------------------------
-## Root & health
-## -----------------------------
-#@app.get("/", include_in_schema=False)
-#def root():
-#    # Nice UX when you visit the root in a browser
-#    return RedirectResponse(url="/mcp/tools")
-#
-#@app.get("/healthz", include_in_schema=False)
-#def healthz():
-#    return {
-#        "status": "ok",
-#        "horcrux_url": str(settings.HORCRUX_URL),
-#        "cached": _cache["data"] is not None,
-#        "last_fetch_epoch": _cache["ts"],
-#    }
-#
-## -----------------------------
-## MCP: tools manifest
-## -----------------------------
-#@app.get("/mcp/tools")
-#def mcp_tools():
-#    return {
-#        "tools": [
-#            {
-#                "name": "get_horcrux",
-#                "description": "Return the public shard JSON",
-#                "input_schema": {
-#                    "type": "object",
-#                    "properties": {},
-#                },
-#            },
-#            {
-#                "name": "search_horcrux",
-#                "description": "Keyword search over the shard JSON",
-#                "input_schema": {
-#                    "type": "object",
-#                    "properties": {
-#                        "q": {
-#                            "type": "string",
-#                            "description": "Search query (alias: query)",
-#                        },
-#                        "query": {
-#                            "type": "string",
-#                            "description": "Alias of 'q' (optional)",
-#                        },
-#                        "section": {
-#                            "type": "string",
-#                            "enum": ["skills", "projects", "interviews", "all"],
-#                            "description": "Limit search to a section (default: all)",
-#                        },
-#                        "limit": {
-#                            "type": "number",
-#                            "description": "Max results (default 8)",
-#                        },
-#                    },
-#                    "required": ["q"],
-#                },
-#            },
-#        ]
-#    }
-#
-## -----------------------------
-## MCP: call endpoints
-## -----------------------------
-#@app.post("/mcp/call/get_horcrux")
-#async def mcp_call_get_horcrux(_: None = Depends(auth)):
-#    data = await fetch_crux()
-#    # Keep response shape same as your working version
-#    return {"content": data}
-#
-#@app.post("/mcp/call/search_horcrux")
-#async def mcp_call_search_horcrux(body: Dict[str, Any], _: None = Depends(auth)):
-#    q, section, limit = _normalize_search_args(body or {})
-#    if not q:
-#        raise HTTPException(status_code=400, detail="Missing 'q' or 'query'")
-#    data = await fetch_crux()
-#    return _search(data, q=q, section=section, limit=limit)
-#
-## -----------------------------
-## Helpers: arguments & search
-## -----------------------------
-#SECTIONS = {"skills", "projects", "interviews", "all"}
-#
-#def _normalize_search_args(arguments: Dict[str, Any]) -> Tuple[str, str, int]:
-#    q = (arguments.get("q") or arguments.get("query") or "").strip()
-#    section = (arguments.get("section") or "all").lower()
-#    limit = int(arguments.get("limit") or 8)
-#    if section not in SECTIONS:
-#        section = "all"
-#    if limit <= 0:
-#        limit = 8
-#    return q, section, limit
-#
-#def _walk_collect(node: Any, path: str, q_lower: str, out: List[Dict[str, Any]]) -> None:
-#    if isinstance(node, dict):
-#        for k, v in node.items():
-#            _walk_collect(v, f"{path}.{k}", q_lower, out)
-#    elif isinstance(node, list):
-#        for i, v in enumerate(node):
-#            _walk_collect(v, f"{path}[{i}]", q_lower, out)
-#    else:
-#        s = str(node)
-#        if q_lower in s.lower():
-#            # crude snippet around first occurrence
-#            idx = s.lower().find(q_lower)
-#            start = max(0, idx - 40) if idx != -1 else 0
-#            snippet = s[start:start + 160]
-#            out.append({"path": path, "snippet": snippet})
-#
-#def _section_typed_hits(data: Dict[str, Any], q_lower: str, section: str) -> List[Dict[str, Any]]:
-#    typed: List[Dict[str, Any]] = []
-#
-#    if section in ("all", "skills"):
-#        skills = data.get("skills") or {}
-#        for cat, items in skills.items():
-#            if isinstance(items, list):
-#                for s in items:
-#                    if q_lower in str(s).lower():
-#                        typed.append({"type": "skill", "category": cat, "value": s})
-#
-#    if section in ("all", "projects"):
-#        for proj in data.get("projects", []):
-#            blob = " ".join([
-#                " ".join(proj.get("stack", []) or []),
-#                proj.get("description", "") or "",
-#                " ".join(proj.get("highlights", []) or []),
-#                proj.get("name", "") or "",
-#            ]).lower()
-#            if q_lower in blob:
-#                typed.append({"type": "project", "value": proj})
-#
-#    if section in ("all", "interviews"):
-#        for iv in data.get("interviews", []):
-#            blob = " ".join([
-#                iv.get("company", "") or "",
-#                iv.get("role", "") or "",
-#                iv.get("feedback", "") or "",
-#                " ".join(iv.get("topics", []) or []),
-#            ]).lower()
-#            if q_lower in blob:
-#                typed.append({"type": "interview", "value": iv})
-#
-#    return typed
-#
-#def _search(data_wrapper: Dict[str, Any], q: str, section: str, limit: int) -> Dict[str, Any]:
-#    """
-#    data_wrapper is the top-level JSON returned by your Horcrux URL,
-#    which (per your sample) has a 'content' key holding the corpus.
-#    """
-#    # Handle both shapes gracefully (some older files may already be raw)
-#    corpus = data_wrapper.get("content", data_wrapper)
-#
-#    q_lower = q.lower()
-#    # 1) Path/snippet results (your original format)
-#    pathy: List[Dict[str, Any]] = []
-#    _walk_collect(corpus, "corpus", q_lower, pathy)
-#    if len(pathy) > limit:
-#        pathy = pathy[:limit]
-#
-#    # 2) Typed results (skills/projects/interviews)
-#    typed = _section_typed_hits(corpus, q_lower, section)
-#    if len(typed) > limit:
-#        typed = typed[:limit]
-#
-#    return {
-#        "query": q,
-#        "section": section,
-#        "results": pathy,
-#        "typed": typed,
-#        "count": len(pathy),
-#        "typed_count": len(typed),
-#    }
-#
-## -----------------------------
-## Local dev entrypoint
-## -----------------------------
-#if __name__ == "__main__":
-#    import uvicorn
-#    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8000")), reload=True)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("apps.mcp.main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
