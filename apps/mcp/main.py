@@ -1,93 +1,82 @@
-# apps/mcp/main.py
-from __future__ import annotations
-
-import json
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
+import json
+from typing import Any, Dict, List
 
+import httpx
 from fastapi import FastAPI
 from fastmcp import FastMCP
-from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
 
 APP_NAME = "Horcrux MCP"
-APP_VERSION = "2025.10.16"
+HORCRUX_URL = os.getenv("HORCRUX_URL", "")
 
-# Resolve where your Horcrux JSON lives.
-# Override with HORCRUX_JSON if you want a different path at deploy time.
-DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "rob_horcrux.json"
-HORCRUX_PATH = Path(os.getenv("HORCRUX_JSON", str(DEFAULT_DATA)))
-
-# -----------------------
-# Load data once at boot
-# -----------------------
-def load_horcrux() -> Dict[str, Any]:
-    if not HORCRUX_PATH.exists():
-        return {"error": f"Horcrux JSON not found at {HORCRUX_PATH}"}
-    with HORCRUX_PATH.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-HORCRUX = load_horcrux()
-
-# -----------------------
-# FastMCP server & tools
-# -----------------------
+# Create the MCP server (no description arg in current API)
 mcp = FastMCP(name=APP_NAME)
 
-@mcp.tool()
-def get_horcrux() -> Dict[str, Any]:
-    """Return the full Horcrux JSON."""
-    return HORCRUX
+async def load_horcrux() -> Dict[str, Any]:
+    """Load the Horcrux JSON from HORCRUX_URL (HTTP) or local fallback."""
+    if HORCRUX_URL:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(HORCRUX_URL)
+            r.raise_for_status()
+            return r.json()
+    # fallback: local file inside the repo
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "rob_horcrux.json")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-def _walk(node: Any, path: str = "root") -> List[Tuple[str, str]]:
-    """Yield (path, string_value) pairs for simple keyword scan."""
-    out: List[Tuple[str, str]] = []
-    if isinstance(node, dict):
-        for k, v in node.items():
-            out.extend(_walk(v, f"{path}.{k}"))
-    elif isinstance(node, list):
-        for i, v in enumerate(node):
-            out.extend(_walk(v, f"{path}[{i}]"))
-    else:
-        # Only match against strings and simple scalars
-        if isinstance(node, (str, int, float, bool)) and node is not None:
-            out.append((path, str(node)))
-    return out
+@mcp.tool
+async def get_horcrux() -> Dict[str, Any]:
+    """Return the entire Horcrux JSON."""
+    return {"content": await load_horcrux()}
 
-@mcp.tool()
-def search_horcrux(q: str) -> List[Dict[str, str]]:
-    """Keyword search over the Horcrux JSON. Returns matching paths/snippets."""
-    q_lower = q.lower().strip()
-    if not q_lower:
-        return []
+def _search(obj: Any, needle: str, path: str = "corpus") -> List[Dict[str, str]]:
+    """Depth‑first search for case‑insensitive substring; returns path and snippet."""
     results: List[Dict[str, str]] = []
-    for p, text in _walk(HORCRUX, "corpus"):
-        if q_lower in text.lower():
-            results.append({"path": p, "snippet": text})
-            if len(results) >= 50:
-                break
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            results.extend(_search(v, needle, f"{path}.{k}"))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            results.extend(_search(v, needle, f"{path}[{i}]"))
+    else:
+        s = str(obj)
+        if needle.lower() in s.lower():
+            results.append({"path": path, "snippet": s[:200]})
     return results
 
-# -----------------------
-# ASGI app (Streamable HTTP)
-# - The FastMCP app exposes /mcp (JSON-RPC over Streamable HTTP)
-#   so mount it at "/" to make the final URL {host}/mcp
-# -----------------------
-mcp_app = mcp.http_app(path="/mcp")  # inner app serves /mcp
-app = FastAPI(lifespan=mcp_app.lifespan)
-app.mount("/", mcp_app)
+@mcp.tool
+async def search_horcrux(q: str) -> Dict[str, Any]:
+    """Search the Horcrux JSON for a keyword (case‑insensitive)."""
+    data = await load_horcrux()
+    return {"results": _search(data, q)}
 
-# Optional: add a simple health route
-@mcp.custom_route("/health", methods=["GET"])
-async def health(_: Request) -> PlainTextResponse:
-    return PlainTextResponse("ok")
+# Aliases ChatGPT likes (not strictly required but useful)
+@mcp.tool(name="search")
+async def alias_search(q: str) -> Dict[str, Any]:
+    return await search_horcrux(q=q)
 
-# Optional: tiny info endpoint (handy in a browser)
-@mcp.custom_route("/", methods=["GET"])
-async def root(_: Request) -> JSONResponse:
-    return JSONResponse({"name": APP_NAME, "version": APP_VERSION, "mcp_endpoint": "/mcp"})
+@mcp.tool(name="fetch")
+async def fetch_path(path: str) -> Dict[str, Any]:
+    """Fetch a value by dotted/indexed path (e.g. corpus.projects[0].name)."""
+    data = await load_horcrux()
+    import re
+    cur: Any = data
+    # simple dotted‑path parser
+    for token in re.finditer(r"\.?([a-zA-Z0-9_]+)|\[(\d+)\]", path):
+        key, idx = token.group(1), token.group(2)
+        if key:
+            cur = cur[key]
+        elif idx:
+            cur = cur[int(idx)]
+    return {"value": cur}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("apps.mcp.main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+# Build the MCP ASGI app; path="/" inside the sub‑app
+mcp_app = mcp.http_app(path="/")
+
+# Expose FastAPI app and mount the MCP handler at /mcp
+app = FastAPI(title=APP_NAME, version="1.0")
+app.mount("/mcp", mcp_app)
+
+@app.get("/health")
+async def health():
+    return {"ok": True}

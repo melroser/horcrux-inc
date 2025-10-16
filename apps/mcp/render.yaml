@@ -5,10 +5,10 @@ services:
     plan: starter
     region: oregon
     buildCommand: |
+      # Install only the MCP service dependencies
       pip install -r apps/mcp/requirements.txt
     startCommand: uvicorn apps.mcp.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: HORCRUX_URL
         value: https://horcrux.inc/rob_horcrux.json
-      # Or omit HORCRUX_URL and bake the file into apps/mcp/../data/rob_horcrux.json
     pythonVersion: 3.12.6
