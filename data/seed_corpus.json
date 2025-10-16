@@ -1,0 +1,25 @@
+{
+  "name": "Robert Melrose",
+  "updated": "2025-10-09",
+  "headline": "Full-Stack / AI Systems Engineer – Miami",
+  "skills": ["Python", "Next.js", "Node.js", ".NET", "RAG systems", "Audio DSP"],
+  "projects": [
+    {
+      "name": "Devs.Miami",
+      "desc": "Onboarding automation platform",
+      "stack": ["Next.js", "Python"],
+      "links": { "repo": "https://github.com/melroser" }
+    },
+    {
+      "name": "Archaeologist",
+      "desc": "Audio segmentation + metadata graphs",
+      "stack": ["Python", "WhisperX", "HuggingFace", "Cytoscape.js"]
+    }
+  ],
+  "interviews": [
+    { "company": "Citadel Securities", "rounds": 2, "feedback": "Strong architecture reasoning" },
+    { "company": "Salesforce", "rounds": 2, "feedback": "Good comms; revisit concurrency" },
+    { "company": "Apollo Global Management", "rounds": 3, "feedback": "Refresh .NET fluency" }
+  ],
+  "focus": ["Polish project docs/tests", "Daily timed coding drills", "Prep design deep-dives"]
+}
