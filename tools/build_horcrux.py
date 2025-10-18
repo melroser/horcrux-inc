@@ -2,12 +2,7 @@
 """
 Builds a single Horcrux JSON from mixed sources (md/txt/json) under data/sources/**.
 Usage:
-  uv run python tools/build_horcrux.py \
-    --name "Robert Melrose" \
-    --title "Senior Full-Stack Engineer" \
-    --location "Miami, FL" \
-    --out apps/web/public/rob_horcrux.json \
-    data/sources
+  uv run python tools/build_horcrux.py --name "Robert Melrose" --title "Senior Full-Stack Engineer" --location "Miami, FL" --out apps/web/public/rob_horcrux.json data/sources
 """
 
 from __future__ import annotations

@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "build:shard": "python3 tools/build_shard.py",
-    "deploy:mcp": "cd apps/mcp && render deploy"
+    "build:horcrux": "uv run python tools/build_horcrux.py  --name='Robert Melrose'  --title='Senior Full-Stack Engineer'  --location='Miami, FL'  --out='apps/web/public/rob_horcrux.json'  data/sources",
+    "build:mcp": "cd apps/mcp && uv pip install -r requirements.txt",
+    "deploy:mcp": "cd apps/mcp && render deploy",
+    "mcp": "uv run uvicorn apps.mcp.main:app --host 0.0.0.0 --port 8000"
+
   },
   "devDependencies": {
     "@types/node": "^20",
