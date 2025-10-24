@@ -2,7 +2,9 @@
   "name": "horcrux-inc",
   "private": true,
   "packageManager": "pnpm@8.15.0",
-  "workspaces": ["apps/web"],
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
@@ -10,10 +12,13 @@
     "build:mcp": "cd apps/mcp && uv pip install -r requirements.txt",
     "deploy:mcp": "cd apps/mcp && render deploy",
     "mcp": "uv run uvicorn apps.mcp.main:app --host 0.0.0.0 --port 8000"
-
   },
   "devDependencies": {
     "@types/node": "^20",
     "typescript": "^5"
+  },
+  "dependencies": {
+    "react-force-graph-3d": "^1.29.0",
+    "three": "^0.180.0"
   }
 }
