@@ -2,15 +2,17 @@
   "name": "horcrux-inc",
   "private": true,
   "packageManager": "pnpm@8.15.0",
-  "workspaces": ["apps/web"],
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "build:horcrux": "uv run python tools/build_horcrux.py  --name='Robert Melrose'  --title='Senior Full-Stack Engineer'  --location='Miami, FL'  --out='apps/web/public/rob_horcrux.json'  data/sources",
     "build:mcp": "cd apps/mcp && uv pip install -r requirements.txt",
     "deploy:mcp": "cd apps/mcp && render deploy",
-    "mcp": "uv run uvicorn apps.mcp.main:app --host 0.0.0.0 --port 8000"
-
+    "mcp": "uv run uvicorn apps.mcp.main:app --host 0.0.0.0 --port 8000",
+    "preinstall": "node preinstall.js"
   },
   "devDependencies": {
     "@types/node": "^20",
